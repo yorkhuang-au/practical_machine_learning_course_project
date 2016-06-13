@@ -1,0 +1,96 @@
+---
+title: "Pracrical Machine Learning Course Project"
+author: "York Huang"
+date: "Monday, June 13, 2016"
+output: html_document
+---
+
+### Background
+In this project, We will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of the project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+### Data Preparation
+Load the raw training set and testing set. Cleanse data as following.
+```{r}
+suppressMessages(require(caret))
+suppressMessages(require(rpart))
+suppressMessages(require(rattle))
+suppressMessages(require(randomForest))
+
+set.seed(123)
+
+# Convert empty values to NAs.
+raw_training <- read.csv("pml-training.csv", na.strings=c("","NA"))
+raw_testing  <- read.csv("pml-testing.csv",  na.strings=c("","NA"))
+
+# Remove the 1st 7 fields from the data as they are not used as predictors.
+raw_training <- raw_training[, (-1:-7)]
+raw_testing <-  raw_testing[, (-1:-7)]
+
+# Remove nearly zero fields
+nzf <- nearZeroVar(raw_training)
+raw_training <- raw_training[, -nzf]
+raw_testing <- raw_testing[, -nzf]
+
+# Remove mostly NA fields (More than 80% are NAs)
+naf <- sapply(raw_training, function(x) mean(is.na(x))) > 0.8
+raw_training <- raw_training[, !naf]
+raw_testing  <- raw_testing [, !naf]
+```
+Now the data is quite clean. There are 53 fields. The 53rd field in the raw_training is classe. The 53rd field in the raw_testing is problem_id.
+
+Split the raw_training into traing and testing sets. The raw_testing set is for prediction.
+
+```{r}
+inTrain <- createDataPartition(raw_training$classe, p=0.8, list=FALSE)
+training <- raw_training[ inTrain, ]
+testing <-  raw_training[-inTrain, ]
+```
+
+### Create Decision Tree Model
+This is the 1st simple model I tried.
+```{r}
+set.seed(123)
+model_rp <- train(classe ~ ., data=training, method="rpart")
+model_rp
+```
+The accuracy is 50.3% which is pretty low. So cross validation and preprocess is added.
+
+```{r}
+model_rp_m <- train(classe ~ ., data =training, method="rpart", preProcess=c("center", "scale"), 
+                    trControl=trainControl(method = "cv", number = 4))
+model_rp_m
+```
+The accuracy is 50.0% which is almost the same.
+
+Let's have a look the tree diagram.
+```{r}
+fancyRpartPlot(model_rp_m$finalModel)
+```
+
+### Create Random Forest Model
+Random Forest model is tried with cross validation.
+```{r}
+set.seed(123)
+model_rf <- train(class ~ ., data=training, method="rf",
+                  trControl=trainControl(method = "cv", number = 4))
+model_rf
+```
+This takes much longer time. But the accuracy is 99.1%, which is much better than decision tree model. The random forest model is selected.
+
+Then apply to the testing set.
+
+```{r}
+pred_testing <- predict(model_rf, newdata= testing)
+cm_rf <- confusionMatrix( pred_testing, testing$classe)
+cm_rf
+```
+The overall accuracy on the testing set is 99.34%. The out of sample error rate is 0.0064.
+
+Apply on the raw_testing set.
+```{r}
+pred_raw_testing <- predict(model_rf, newdata=raw_testing)
+pred_raw_testing
+```
+
+### Conclusion
+The resulting prediction for the original testing data is (B A B A A E D B A A B C B A E E A B B B).
