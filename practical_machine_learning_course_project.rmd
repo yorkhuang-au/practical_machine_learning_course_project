@@ -71,7 +71,7 @@ fancyRpartPlot(model_rp_m$finalModel)
 Random Forest model is tried with cross validation.
 ```{r}
 set.seed(123)
-model_rf <- train(class ~ ., data=training, method="rf",
+model_rf <- train(classe ~ ., data=training, method="rf",
                   trControl=trainControl(method = "cv", number = 4))
 model_rf
 ```
